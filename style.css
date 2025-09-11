@@ -1,0 +1,31 @@
+.swipe-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.event-box {
+  width: 320px;
+  min-height: 180px;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  margin: 0 16px;
+  padding: 20px;
+  background: #f9f9f9;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  transition: box-shadow 0.2s;
+}
+
+button {
+  font-size: 2rem;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+button:hover {
+  background: #eee;
+}
