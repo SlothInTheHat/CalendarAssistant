@@ -178,7 +178,7 @@ def create_event(event_data, service):
             return datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %I:%M %p")
         except ValueError:
             pass
-        # Fallback to 09:00kjkjk
+        # Fallback to 09:00
         return datetime.strptime(f"{date_str} 09:00", "%Y-%m-%d %H:%M")
 
     start_time_str = event_data.get("start_time", "09:00")
