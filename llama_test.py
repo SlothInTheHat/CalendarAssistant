@@ -222,7 +222,7 @@ def fetch_emails(tenant, client, authority):
 
     if "access_token" in result:
         headers = {"Authorization": f"Bearer {result['access_token']}"}
-        url = "https://graph.microsoft.com/v1.0/me/messages?$top=3&$select=subject,from,receivedDateTime,body"
+        url = "https://graph.microsoft.com/v1.0/me/messages?$top=5&$select=subject,from,receivedDateTime,body"
 
         response = requests.get(url, headers=headers)
         emails = response.json()
@@ -236,8 +236,10 @@ def fetch_emails(tenant, client, authority):
             plain_text = soup.get_text()
             combined_text = sender + "\n" + subject + "\n" + plain_text
             email_list.append(combined_text)
+            print(combined_text)
     else:
         print("Login error:", result.get("error_description"))
+
     return email_list
 
 
