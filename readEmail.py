@@ -6,11 +6,14 @@ from bs4 import BeautifulSoup
 from msal import PublicClientApplication
 import requests
 from bs4 import BeautifulSoup
+from openai import OpenAI
+import json
 
 load_dotenv()
 TENANT_ID = os.getenv("TENANT_ID")
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+OPENAI_KEY = os.getenv("CHAT_KEY")
 
 def fetch_emails(tenant_id, client_id, amount):
     authority = f"https://login.microsoftonline.com/{tenant_id}"
@@ -47,6 +50,44 @@ def fetch_emails(tenant_id, client_id, amount):
     return email_list
 
 
+def parse_email_content(email_content):
+
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENAI_KEY)
+
+    with open("prompt.txt", "r", encoding="utf-8") as f:
+        guidlines = f.read()
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {"role": "system", "content": guidlines},
+            {"role": "user", "content": email_content},
+        ], 
+        response_format={ "type": "json_object" },
+
+        max_tokens=500,
+        temperature=0.2,
+    )
+    raw_output = response.choices[0].message.content
+    try:
+        parsed_json = json.loads(raw_output)
+    except json.JSONDecodeError:
+        print("⚠️ Model returned invalid JSON. Raw output was:\n", raw_output)
+        with open("last_response.json", "w", encoding="utf-8") as f:
+            f.write(raw_output)
+
+        # Try to recover by trimming around first/last braces
+        try:
+            start = raw_output.find("{")
+            end = raw_output.rfind("}") + 1
+            cleaned = raw_output[start:end]
+            parsed_json = json.loads(cleaned)
+        except Exception:
+            # If still broken, return empty structure instead of crashing
+            parsed_json = {"events": []}
+
+    return parsed_json
+
+
 if __name__ == "__main__":
     TENANT_ID = os.getenv("TENANT_ID")
     CLIENT_ID = os.getenv("CLIENT_ID")
@@ -57,4 +98,4 @@ if __name__ == "__main__":
     emails = fetch_emails(TENANT_ID, CLIENT_ID, amount)
 
     for email in emails:
-        print(email)
+        print(parse_email_content(email))
