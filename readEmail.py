@@ -7,7 +7,13 @@ from msal import PublicClientApplication
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
+from datetime import datetime, timedelta
 import json
+import google.auth
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+
 
 load_dotenv()
 TENANT_ID = os.getenv("TENANT_ID")
@@ -77,7 +83,7 @@ def parse_email_content(email_content):
 
         # Try to recover by trimming around first/last braces
         try:
-            start = raw_output.find("{")
+            start = raw_output.find("{")     
             end = raw_output.rfind("}") + 1
             cleaned = raw_output[start:end]
             parsed_json = json.loads(cleaned)
@@ -88,6 +94,60 @@ def parse_email_content(email_content):
     return parsed_json
 
 
+def get_calendar_service():
+
+    SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+    creds = None
+    if os.path.exists("token.json"):
+        from google.oauth2.credentials import Credentials
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(google.auth.transport.requests.Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+
+    return build("calendar", "v3", credentials=creds)
+
+
+def create_event(event_data, service):
+
+    start_time = event_data.get("start_time", "09:00")
+    end_time = event_data.get("end_time", "10:00")
+    start_date = event_data.get("start_date", datetime.now().strftime("%Y-%m-%d"))
+    end_date = event_data.get("end_date", start_date)
+    location = event_data.get("location", "")
+    description = event_data.get("description", event_data.get("title", ""))
+    title = event_data.get("title", "Untitled Event")
+
+    # Parse dates and times
+    start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M")
+    end_dt = datetime.strptime(f"{end_date} {end_time}", "%Y-%m-%d %H:%M")
+
+    #Format as RFC3339
+    start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S")
+    end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+    event = {
+        "summary": event_data.get("title", "Untitled Event"),
+        "description": event_data.get("description", ""),
+        "location": event_data.get("location", ""),
+        "start": {"dateTime": start_str, "timeZone": "America/Chicago"},
+        "end": {"dateTime": end_str, "timeZone": "America/Chicago"},
+    }
+
+    start_date = normalize_date(event_data.get("start_date"))
+    end_date = normalize_date(event_data.get("end_date", start_date))
+
+    created_event = service.events().insert(calendarId="primary", body=event).execute()
+    print("Event created:", created_event.get("htmlLink"))
+
 if __name__ == "__main__":
     TENANT_ID = os.getenv("TENANT_ID")
     CLIENT_ID = os.getenv("CLIENT_ID")
@@ -97,5 +157,10 @@ if __name__ == "__main__":
         amount = int(amount) if int(amount) > 0 and int(amount) <= 25 else 5
     emails = fetch_emails(TENANT_ID, CLIENT_ID, amount)
 
+    event_jsons = []
     for email in emails:
-        print(parse_email_content(email))
+        event_jsons.append(parse_email_content(email))
+
+        service = get_calendar_service()
+    for event in event_jsons:
+        create_event(event, service)
